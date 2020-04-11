@@ -61,7 +61,7 @@ public class YouTrack {
     private long expiresOn;
 
     public YouTrack(String apiUrl, String clientId, String clientSecret, String scope) throws APIException {
-        this.apiUrl = apiUrl;
+        this.apiUrl = apiUrl + "/api";
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.scope = scope;

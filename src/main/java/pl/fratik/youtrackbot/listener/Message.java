@@ -150,8 +150,8 @@ public class Message implements Listener {
                 .addField("Przypisane do", przypisane.getValue().get(0).getName(), true)
                 .addField("Tester", tester.getValue().get(0).getName(), true)
                 .addField("Wyniki testu", wynikTestu.getValue().get(0).getName(), true)
-                .addField("Otwórz w przeglądarce", "[Klik](https://issues.fratikbot.pl/issue/" +
-                        i.getIdReadable() + ")", false)
+                .addField("Otwórz w przeglądarce", "[Klik](" + Ustawienia.instance.youTrackUrl +
+                        "/issue/" + i.getIdReadable() + ")", false)
                 .setFooter(i.getReporter().getFullName(), i.getReporter().getAvatarUrl())
                 .setTimestamp(Instant.ofEpochMilli(i.getCreated())).build();
     }
