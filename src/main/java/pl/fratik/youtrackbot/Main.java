@@ -23,20 +23,38 @@ package pl.fratik.youtrackbot;
 import com.google.common.eventbus.AsyncEventBus;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import io.undertow.Handlers;
+import io.undertow.Undertow;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.RoutingHandler;
+import io.undertow.server.handlers.BlockingHandler;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.exceptions.ContextException;
 import net.dv8tion.jda.api.requests.RestAction;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.fratik.youtrackbot.api.YouTrack;
+import pl.fratik.youtrackbot.api.auth.ClientCredentials;
+import pl.fratik.youtrackbot.commands.Command;
+import pl.fratik.youtrackbot.commands.CommandManager;
+import pl.fratik.youtrackbot.commands.TesterCommand;
+import pl.fratik.youtrackbot.entity.ManagerBazyDanych;
+import pl.fratik.youtrackbot.entity.UserKeyDao;
+import pl.fratik.youtrackbot.internale.CustomHandlers;
+import pl.fratik.youtrackbot.internale.ExceptionHandlers;
+import pl.fratik.youtrackbot.internale.Exchange;
+import pl.fratik.youtrackbot.internale.MiddlewareBuilder;
+import pl.fratik.youtrackbot.listener.DMListener;
+import pl.fratik.youtrackbot.listener.IssueListener;
 import pl.fratik.youtrackbot.listener.Listener;
 import pl.fratik.youtrackbot.listener.ListenerManager;
-import pl.fratik.youtrackbot.listener.Message;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -47,12 +65,16 @@ public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
     private JDA jda;
     private ListenerManager listenerManager;
+    private CommandManager commandManager;
+    private ManagerBazyDanych mbd;
+    private Undertow undertow;
+    private AsyncEventBus eventBus;
 
     private static final File cfg = new File("config.json");
 
     public Main(String token) {
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown, "Shutdown Thread"));
-        AsyncEventBus eventBus = new AsyncEventBus(Executors.newFixedThreadPool(16));
+        eventBus = new AsyncEventBus(Executors.newFixedThreadPool(16));
         logger.info("Loguje się...");
 
         Gson gson = new GsonBuilder().disableHtmlEscaping().serializeNulls().setPrettyPrinting().create();
@@ -92,13 +114,44 @@ public class Main {
             builder.setCallbackPool(Executors.newFixedThreadPool(4));
             jda = builder.build();
 
-            YouTrack yt = new YouTrack(Ustawienia.instance.youTrackUrl, Ustawienia.instance.id,
-                    Ustawienia.instance.secret, Ustawienia.instance.scope);
+            mbd = new ManagerBazyDanych();
+            mbd.load();
+            UserKeyDao ukd = new UserKeyDao(mbd);
+            RoutingHandler routes = new RoutingHandler();
+            routes.get("/token", ex -> {
+                ClassLoader cl;
+                cl = getClass().getClassLoader();
+                if (cl == null) cl = ClassLoader.getSystemClassLoader();
+                try {
+                    String error = Exchange.queryParams().queryParam(ex, "error").orElse(null);
+                    if (error != null) throw new Exception(error);
+                    String code = Exchange.queryParams().queryParam(ex, "code")
+                            .orElseThrow(() -> new Exception("nie ma kodu"));
+                    String html = IOUtils.resourceToString("code.success.html", StandardCharsets.UTF_8, cl);
+                    Exchange.body().sendHtml(ex, html.replace("{{kot}}", code));
+                } catch (Exception e) {
+                    String html = IOUtils.resourceToString("code.error.html", StandardCharsets.UTF_8, cl);
+                    Exchange.body().sendHtml(ex.setStatusCode(400), html.replace("{{blad}}", e.getMessage()));
+                }
+            });
+            undertow = Undertow.builder()
+                    .addHttpListener(Ustawienia.instance.port, Ustawienia.instance.host, wrapWithMiddleware(routes))
+                    .build();
+            undertow.start();
+
+            YouTrack yt = new YouTrack(Ustawienia.instance.youTrackUrl, new ClientCredentials(Ustawienia.instance.id,
+                    Ustawienia.instance.secret, Ustawienia.instance.scope));
             listenerManager = new ListenerManager(eventBus);
+            commandManager = new CommandManager(eventBus);
 
             List<Listener> listeners = new ArrayList<>();
-            listeners.add(new Message(yt));
+            listeners.add(new IssueListener(yt));
+            listeners.add(new DMListener(ukd));
             listenerManager.registerListeners(listeners);
+            List<Command> commands = new ArrayList<>();
+            commands.add(new TesterCommand(ukd));
+            commandManager.registerCommands(commands);
+            eventBus.register(commandManager);
 
             jda.awaitReady();
             jda.getPresence().setStatus(OnlineStatus.ONLINE);
@@ -109,9 +162,23 @@ public class Main {
             System.exit(2);
         }
     }
+
+    private HttpHandler wrapWithMiddleware(RoutingHandler handler) {
+        return MiddlewareBuilder.begin(BlockingHandler::new)
+                .next(CustomHandlers::gzip)
+                .next(CustomHandlers::accessLog)
+                .next(next -> Handlers.exceptionHandler(next)
+                        .addExceptionHandler(Throwable.class, ExceptionHandlers::handleAllExceptions))
+                .complete(handler);
+    }
     
     public void shutdown() {
         if (listenerManager != null) listenerManager.shutdown();
+        if (commandManager != null) {
+            eventBus.unregister(commandManager);
+            commandManager.shutdown();
+        }
+        if (mbd != null) mbd.shutdown();
         if (jda != null) jda.shutdown();
     }
 

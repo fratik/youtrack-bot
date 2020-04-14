@@ -20,6 +20,8 @@
 
 package pl.fratik.youtrackbot;
 
+import com.google.gson.annotations.SerializedName;
+
 public class Ustawienia {
     public static Ustawienia instance;
     public String botGuild = "ID serwera, na którym bot ma odpowiadać";
@@ -28,4 +30,15 @@ public class Ustawienia {
     public String scope = "ID service'u youtracka";
     public String id = "patrz readme";
     public String secret = "patrz readme";
+    public PostgresSettings postgres;
+    public String host = "0.0.0.0";
+    public int port = 8080;
+    public String redirect = "http://host:port/token";
+
+    public static class PostgresSettings {
+        @SerializedName("jdbcUrl")
+        public String jdbcUrl;
+        public String user;
+        public String password;
+    }
 }

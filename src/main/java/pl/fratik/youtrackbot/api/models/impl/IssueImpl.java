@@ -20,11 +20,16 @@
 
 package pl.fratik.youtrackbot.api.models.impl;
 
+import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import pl.fratik.youtrackbot.api.YouTrack;
+import pl.fratik.youtrackbot.api.exceptions.APIException;
 import pl.fratik.youtrackbot.api.models.Issue;
+import pl.fratik.youtrackbot.api.models.User;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,8 +40,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class IssueImpl implements Issue {
     public static final String FIELDS = "id,idReadable," +
-            "customFields(name,value(name,description,color(background,foreground)),id),summary,description," +
-            "project(name,id,shortName),reporter(login,fullName,avatarUrl),attachments(url,name),created";
+            "customFields(name,value(name,description,color(background,foreground),id),id),summary,description," +
+            "project(" + ProjectImpl.FIELDS + "),reporter(" + UserImpl.FIELDS + "),attachments(url,name),created";
 
     private List<AttachmentImpl> attachments;
     private long created;
@@ -48,6 +53,8 @@ public class IssueImpl implements Issue {
     private String summary;
     private String id;
     private UserImpl reporter;
+    @Expose(serialize=false,deserialize=false)
+    @Setter private YouTrack youTrack;
 
     @Override
     public List<Attachment> getAttachments() {
@@ -59,6 +66,12 @@ public class IssueImpl implements Issue {
     public List<Field> getFields() {
         if (fields == null) return null;
         return Collections.unmodifiableList(fields.stream().map(a -> (Field) a).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Issue setUserField(Field field, User user) throws APIException {
+        if (youTrack == null) throw new UnsupportedOperationException("nie ustawiono youtracka");
+        return youTrack.setUserField(this, field, user);
     }
 
     @Data
@@ -76,6 +89,13 @@ public class IssueImpl implements Issue {
         private String name;
         private String id;
         private List<FieldValueImpl> value;
+        @SerializedName("$type")
+        private String type;
+
+        @Override
+        public String get$type() {
+            return type;
+        }
 
         @Override
         public List<FieldValue> getValue() {
@@ -89,6 +109,7 @@ public class IssueImpl implements Issue {
         public static class FieldValueImpl implements FieldValue {
             private String name;
             private String description;
+            private String id;
             private FieldValueColorImpl color;
 
             @Data

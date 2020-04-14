@@ -18,32 +18,30 @@
  * and this project is not affiliated with them.
  */
 
-package pl.fratik.youtrackbot.api.exceptions;
+package pl.fratik.youtrackbot.internale;
 
-import pl.fratik.youtrackbot.util.JSONResponse;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.ExceptionHandler;
+import lombok.Data;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+public class ExceptionHandlers {
 
-public class APIException extends IOException {
-    protected final JSONResponse jresp;
+    private ExceptionHandlers() {}
 
-    public APIException(String message, JSONResponse jresp) {
-        super(message);
-        this.jresp = jresp;
+    public static void handleAllExceptions(HttpServerExchange exchange) {
+        LoggerFactory.getLogger(ExceptionHandlers.class).error("Błąd w request'cie!",
+                exchange.getAttachment(ExceptionHandler.THROWABLE));
+        Exchange.body().sendJson(exchange, new GenericException("Internal Server Error!"), 500);
     }
 
-    public APIException(String message, Throwable cause, JSONResponse jresp) {
-        super(message, cause);
-        this.jresp = jresp;
+    @Data
+    public static class GenericException {
+        private final String error;
+        private final boolean success = false;
+        public GenericException(String errorMessage) {
+            error = errorMessage;
+        }
     }
 
-    public APIException(Throwable cause, JSONResponse jresp) {
-        super(cause);
-        this.jresp = jresp;
-    }
-
-    @Override
-    public String toString() {
-        return super.toString();
-    }
 }

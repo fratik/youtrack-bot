@@ -34,10 +34,12 @@ public class FieldDeserializer implements JsonDeserializer<Issue.Field> {
     public Issue.Field deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
         String name;
         String id;
+        String $type;
         List<IssueImpl.FieldImpl.FieldValueImpl> values = new ArrayList<>();
         JsonObject obj = json.getAsJsonObject();
         name = obj.get("name").getAsString();
         id = obj.get("id").getAsString();
+        $type = obj.get("$type").getAsString();
         Gson gson = new GsonBuilder().disableHtmlEscaping().create();
         JsonElement vals = obj.get("value");
         if (vals.isJsonArray()) {
@@ -60,6 +62,6 @@ public class FieldDeserializer implements JsonDeserializer<Issue.Field> {
                 values.add(tak);
             }
         }
-        return new IssueImpl.FieldImpl(name, id, values);
+        return new IssueImpl.FieldImpl(name, id, values, $type);
     }
 }

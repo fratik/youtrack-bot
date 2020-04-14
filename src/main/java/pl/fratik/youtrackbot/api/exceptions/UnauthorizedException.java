@@ -20,8 +20,10 @@
 
 package pl.fratik.youtrackbot.api.exceptions;
 
+import pl.fratik.youtrackbot.util.JSONResponse;
+
 public class UnauthorizedException extends APIException {
-    public UnauthorizedException(String message) {
-        super(message);
+    public UnauthorizedException(String message, JSONResponse jresp) {
+        super(message, jresp);
     }
 }

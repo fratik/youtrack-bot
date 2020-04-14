@@ -18,32 +18,14 @@
  * and this project is not affiliated with them.
  */
 
-package pl.fratik.youtrackbot.api.exceptions;
+package pl.fratik.youtrackbot.commands;
 
-import pl.fratik.youtrackbot.util.JSONResponse;
+import lombok.Getter;
 
-import java.io.IOException;
+public abstract class Command {
+    @Getter protected String name;
 
-public class APIException extends IOException {
-    protected final JSONResponse jresp;
-
-    public APIException(String message, JSONResponse jresp) {
-        super(message);
-        this.jresp = jresp;
-    }
-
-    public APIException(String message, Throwable cause, JSONResponse jresp) {
-        super(message, cause);
-        this.jresp = jresp;
-    }
-
-    public APIException(Throwable cause, JSONResponse jresp) {
-        super(cause);
-        this.jresp = jresp;
-    }
-
-    @Override
-    public String toString() {
-        return super.toString();
+    public void execute(Context ctx) {
+        throw new UnsupportedOperationException("nie zaimplementowano");
     }
 }

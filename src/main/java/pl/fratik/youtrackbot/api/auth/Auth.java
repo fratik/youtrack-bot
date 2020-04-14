@@ -18,32 +18,29 @@
  * and this project is not affiliated with them.
  */
 
-package pl.fratik.youtrackbot.api.exceptions;
+package pl.fratik.youtrackbot.api.auth;
 
-import pl.fratik.youtrackbot.util.JSONResponse;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import pl.fratik.youtrackbot.api.exceptions.APIException;
+import pl.fratik.youtrackbot.api.exceptions.UnauthorizedException;
 
-import java.io.IOException;
+import java.time.Instant;
 
-public class APIException extends IOException {
-    protected final JSONResponse jresp;
+public interface Auth {
+    /**
+     * Odświeża token
+     * @return Typ token'u (Bearer), sam token, Instant wygaśnięcia
+     * @throws UnauthorizedException w przypadku błędu 401
+     * @throws APIException kiedy nie uda się połączyć
+     */
+    TokenResponse refreshToken() throws APIException;
 
-    public APIException(String message, JSONResponse jresp) {
-        super(message);
-        this.jresp = jresp;
-    }
-
-    public APIException(String message, Throwable cause, JSONResponse jresp) {
-        super(message, cause);
-        this.jresp = jresp;
-    }
-
-    public APIException(Throwable cause, JSONResponse jresp) {
-        super(cause);
-        this.jresp = jresp;
-    }
-
-    @Override
-    public String toString() {
-        return super.toString();
+    @Data
+    @AllArgsConstructor
+    class TokenResponse {
+        private final String tokenType;
+        private final String token;
+        private final Instant expiresOn;
     }
 }

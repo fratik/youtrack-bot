@@ -18,32 +18,38 @@
  * and this project is not affiliated with them.
  */
 
-package pl.fratik.youtrackbot.api.exceptions;
+package pl.fratik.youtrackbot.entity;
 
-import pl.fratik.youtrackbot.util.JSONResponse;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import gg.amy.pgorm.annotations.GIndex;
+import gg.amy.pgorm.annotations.PrimaryKey;
+import gg.amy.pgorm.annotations.Table;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 
-import java.io.IOException;
+import java.beans.Transient;
 
-public class APIException extends IOException {
-    protected final JSONResponse jresp;
+@Table("keys")
+@GIndex({"id"})
+@Data
+@AllArgsConstructor
+@RequiredArgsConstructor
+public class UserKey implements DatabaseEntity {
 
-    public APIException(String message, JSONResponse jresp) {
-        super(message);
-        this.jresp = jresp;
+    public UserKey(String id) {
+        this.id = id;
     }
 
-    public APIException(String message, Throwable cause, JSONResponse jresp) {
-        super(message, cause);
-        this.jresp = jresp;
-    }
+    @PrimaryKey
+    private String id;
+    private String refreshToken;
 
-    public APIException(Throwable cause, JSONResponse jresp) {
-        super(cause);
-        this.jresp = jresp;
-    }
-
+    @Transient
+    @JsonIgnore
     @Override
-    public String toString() {
-        return super.toString();
+    public String getTableName() {
+        return "keys";
     }
+
 }

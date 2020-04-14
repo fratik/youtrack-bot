@@ -45,7 +45,7 @@ public class ProjectImpl implements Project {
 
     @Override
     public List<Issue> retrieveIssues() throws APIException {
-        if (youTrack == null) throw new APIException("Nie ustawiono instancji YouTrack'a");
+        if (youTrack == null) throw new APIException("Nie ustawiono instancji YouTrack'a", null);
         return youTrack.getIssues(this);
     }
 }

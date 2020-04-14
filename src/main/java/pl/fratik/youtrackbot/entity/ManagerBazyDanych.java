@@ -18,32 +18,27 @@
  * and this project is not affiliated with them.
  */
 
-package pl.fratik.youtrackbot.api.exceptions;
+package pl.fratik.youtrackbot.entity;
 
-import pl.fratik.youtrackbot.util.JSONResponse;
+import gg.amy.pgorm.PgStore;
+import pl.fratik.youtrackbot.Ustawienia;
 
-import java.io.IOException;
+public class ManagerBazyDanych {
+    private PgStore pgStore;
 
-public class APIException extends IOException {
-    protected final JSONResponse jresp;
-
-    public APIException(String message, JSONResponse jresp) {
-        super(message);
-        this.jresp = jresp;
+    public void shutdown() {
+        if (pgStore != null) pgStore.disconnect();
     }
 
-    public APIException(String message, Throwable cause, JSONResponse jresp) {
-        super(message, cause);
-        this.jresp = jresp;
+    public PgStore getPgStore() {
+        if (pgStore == null) throw new IllegalStateException("pgStore == null");
+        return pgStore;
     }
 
-    public APIException(Throwable cause, JSONResponse jresp) {
-        super(cause);
-        this.jresp = jresp;
+    public void load() {
+        Ustawienia ustawienia = Ustawienia.instance;
+        pgStore = new PgStore(ustawienia.postgres.jdbcUrl, ustawienia.postgres.user, ustawienia.postgres.password);
+        pgStore.connect();
     }
 
-    @Override
-    public String toString() {
-        return super.toString();
-    }
 }

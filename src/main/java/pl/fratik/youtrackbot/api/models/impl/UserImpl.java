@@ -30,6 +30,8 @@ import pl.fratik.youtrackbot.api.models.User;
 @AllArgsConstructor
 @RequiredArgsConstructor
 public class UserImpl implements User {
+    public static final String FIELDS = "login,fullName,avatarUrl,ringId";
+
     private String login;
     private String fullName;
     private String ringId;

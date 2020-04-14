@@ -21,6 +21,8 @@
 package pl.fratik.youtrackbot.api.models;
 
 import org.jetbrains.annotations.NotNull;
+import pl.fratik.youtrackbot.api.exceptions.APIException;
+import pl.fratik.youtrackbot.api.exceptions.UnauthorizedException;
 
 import java.awt.*;
 import java.util.List;
@@ -84,6 +86,16 @@ public interface Issue {
     String getId();
 
     /**
+     * Ustaw wartość pola, którego typem jest 1 użytkownik
+     * @param field pole o $type SingleUserIssueCustomField
+     * @param user użytkownik
+     * @return Edytowane zgłoszenie
+     * @throws UnauthorizedException w przypadku błędu 403
+     * @throws APIException kiedy żądanie się nie uda
+     */
+    Issue setUserField(Field field, User user) throws UnauthorizedException, APIException;
+
+    /**
      * Załącznik
      */
     interface Attachment {
@@ -122,6 +134,8 @@ public interface Issue {
          */
         List<FieldValue> getValue();
 
+        String get$type();
+
         /**
          * Wartość tegoż pola
          */
@@ -137,6 +151,12 @@ public interface Issue {
              * @return opis wartości pola
              */
             String getDescription();
+
+            /**
+             * Zwraca wewnętrzne ID wartości pola
+             * @return wewnętrzne ID wartości pola
+             */
+            String getId();
 
             /**
              * Zwraca kolor wartości pola

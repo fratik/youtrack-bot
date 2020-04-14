@@ -18,32 +18,31 @@
  * and this project is not affiliated with them.
  */
 
-package pl.fratik.youtrackbot.api.exceptions;
+package pl.fratik.youtrackbot.internale;
 
-import pl.fratik.youtrackbot.util.JSONResponse;
+import io.undertow.server.HttpHandler;
 
-import java.io.IOException;
+import java.util.function.Function;
 
-public class APIException extends IOException {
-    protected final JSONResponse jresp;
+public class MiddlewareBuilder {
+    private final Function<HttpHandler, HttpHandler> function;
 
-    public APIException(String message, JSONResponse jresp) {
-        super(message);
-        this.jresp = jresp;
+    private MiddlewareBuilder(Function<HttpHandler, HttpHandler> function) {
+        if (null == function) {
+            throw new IllegalArgumentException("Middleware Function can not be null");
+        }
+        this.function = function;
     }
 
-    public APIException(String message, Throwable cause, JSONResponse jresp) {
-        super(message, cause);
-        this.jresp = jresp;
+    public static MiddlewareBuilder begin(Function<HttpHandler, HttpHandler> function) {
+        return new MiddlewareBuilder(function);
     }
 
-    public APIException(Throwable cause, JSONResponse jresp) {
-        super(cause);
-        this.jresp = jresp;
+    public MiddlewareBuilder next(Function<HttpHandler, HttpHandler> before) {
+        return new MiddlewareBuilder(function.compose(before));
     }
 
-    @Override
-    public String toString() {
-        return super.toString();
+    public HttpHandler complete(HttpHandler handler) {
+        return function.apply(handler);
     }
 }

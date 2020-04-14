@@ -25,24 +25,31 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import pl.fratik.youtrackbot.Ustawienia;
+import pl.fratik.youtrackbot.api.auth.Auth;
 import pl.fratik.youtrackbot.api.exceptions.APIException;
 import pl.fratik.youtrackbot.api.exceptions.UnauthorizedException;
 import pl.fratik.youtrackbot.api.models.Issue;
 import pl.fratik.youtrackbot.api.models.Project;
+import pl.fratik.youtrackbot.api.models.User;
 import pl.fratik.youtrackbot.api.models.deserializer.FieldDeserializer;
 import pl.fratik.youtrackbot.api.models.impl.IssueImpl;
 import pl.fratik.youtrackbot.api.models.impl.ProjectImpl;
 import pl.fratik.youtrackbot.api.models.impl.ProjectJson;
+import pl.fratik.youtrackbot.api.models.impl.UserImpl;
 import pl.fratik.youtrackbot.util.JSONResponse;
 import pl.fratik.youtrackbot.util.JSONResponseArray;
 import pl.fratik.youtrackbot.util.JSONResponseObject;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static pl.fratik.youtrackbot.util.NetworkUtil.encodeURIComponent;
 
@@ -51,50 +58,33 @@ public class YouTrack {
     private static final OkHttpClient client = new OkHttpClient();
     private static final Gson gson = new GsonBuilder().registerTypeAdapter(IssueImpl.FieldImpl.class,
             new FieldDeserializer()).disableHtmlEscaping().create();
+    public static final Pattern ISSUE_ID = Pattern.compile("([A-Z0-9]+)-(\\d+)");
 
     private final String apiUrl;
-    private final String clientId;
-    private final String clientSecret;
-    private final String scope;
+    private final Auth auth;
     private String tokenType;
     private String token;
-    private long expiresOn;
+    private Instant expiresOn;
 
-    public YouTrack(String apiUrl, String clientId, String clientSecret, String scope) throws APIException {
+    public YouTrack(String apiUrl, Auth auth) throws APIException {
         this.apiUrl = apiUrl + "/api";
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
-        this.scope = scope;
+        this.auth = auth;
         refreshToken();
     }
 
-    /**
-     * Odświeża token
-     * @throws UnauthorizedException w przypadku błędu 401
-     * @throws APIException kiedy nie uda się połączyć
-     */
-    private void refreshToken() throws APIException {
-        try {
-            String auth = "Basic " + Base64.getEncoder().encodeToString((clientId + ":" + clientSecret).getBytes());
-            Response res = makeRequest(Ustawienia.instance.hubUrl + "/api/rest/oauth2/token", auth,
-                    MediaType.get("application/x-www-form-urlencoded"), "grant_type=client_credentials&scope="
-                            + scope);
-            JSONResponseObject json = toJsonResponseObject(res);
-            if (json == null || json.getCode() != 200) throw new UnauthorizedException("Błąd logowania: " + json);
-            tokenType = json.getString("token_type");
-            token = json.getString("access_token");
-            expiresOn = Instant.now().toEpochMilli() + (json.getInt("expires_in") * 1000);
-        } catch (IOException e) {
-            throw new APIException(e);
-        }
-    }
-
-    private JSONResponseObject toJsonResponseObject(Response res) throws IOException {
+    public static JSONResponseObject toJsonResponseObject(Response res) throws IOException {
         return res.body() == null ? null : new JSONResponseObject(res.body().string(), res.code());
     }
 
     private JSONResponseArray toJsonResponseArray(Response res) throws IOException {
         return res.body() == null ? null : new JSONResponseArray(res.body().string(), res.code());
+    }
+
+    private void refreshToken() throws APIException {
+        Auth.TokenResponse tr = auth.refreshToken();
+        tokenType = tr.getTokenType();
+        token = tr.getToken();
+        expiresOn = tr.getExpiresOn();
     }
 
     /**
@@ -105,11 +95,11 @@ public class YouTrack {
      */
     private String getToken() throws APIException {
         try {
-            if (expiresOn - Instant.now().toEpochMilli() >= (300 * 1000))
+            if (expiresOn.toEpochMilli() - Instant.now().toEpochMilli() >= (300 * 1000))
                 refreshToken();
             return tokenType + " " + token;
         } catch (IOException e) {
-            throw new APIException(e);
+            throw new APIException(e, null);
         }
     }
 
@@ -163,6 +153,39 @@ public class YouTrack {
         return requestPaginatedList(base, new TypeToken<IssueImpl>(){});
     }
 
+    /**
+     * Zwraca dane o użytkowniku wykonującym
+     * @return dane o wykonującym
+     * @throws UnauthorizedException w przypadku błędu 401
+     * @throws APIException przy błędzie połączenia
+     */
+    public User getMe() throws APIException {
+        return request(apiUrl + "/users/me?fields=" + encodeURIComponent(UserImpl.FIELDS),
+                new TypeToken<UserImpl>(){});
+    }
+
+    private <T> T request(String url, TypeToken<? extends T> typeToken) throws APIException {
+        try {
+            Response resp = makeRequest(url, getToken());
+            JSONResponseObject json = toJsonResponseObject(resp);
+            checkJsonResponse(json);
+            return gson.fromJson(json.toString(), typeToken.getType());
+        } catch (IOException e) {
+            throw new APIException(e, null);
+        }
+    }
+
+    private <T> T request(String url, TypeToken<? extends T> typeToken, MediaType type, String content) throws APIException {
+        try {
+            Response resp = makeRequest(url, getToken(), type, content);
+            JSONResponseObject json = toJsonResponseObject(resp);
+            checkJsonResponse(json);
+            return gson.fromJson(json.toString(), typeToken.getType());
+        } catch (IOException e) {
+            throw new APIException(e, null);
+        }
+    }
+
     @NotNull
     private <T> List<T> requestPaginatedList(String baseUrl, TypeToken<? extends T> typeToken) throws APIException {
         List<T> list = new ArrayList<>();
@@ -184,23 +207,30 @@ public class YouTrack {
                 }
                 list.addAll(lista);
             } catch (IOException e) {
-                throw new APIException(e);
+                throw new APIException(e, null);
             }
         } while (paginate);
+        try {
+            Method method;
+            Class<?> clazz = typeToken.getRawType();
+            method = clazz.getDeclaredMethod("setYouTrack", YouTrack.class);
+            for (T el : list)
+                method.invoke(el, this);
+        } catch (Exception ignored) {}
         return list;
     }
 
     private void checkJsonResponse(JSONResponse json) throws IOException {
         if (json == null) throw new IOException("json == null");
-        if (json.getCode() == 401 || json.getCode() == 403) throw new UnauthorizedException("kod 401 lub 403");
-        if (json.getCode() != 200) throw new APIException("kod nie 200");
+        if (json.getCode() == 401 || json.getCode() == 403) throw new UnauthorizedException("kod 401 lub 403", json);
+        if (json.getCode() != 200) throw new APIException("kod nie 200", json);
     }
 
-    private Response makeRequest(String url, String authorization) throws IOException {
+    public static Response makeRequest(String url, String authorization) throws IOException {
         return makeRequest(url, authorization, null, null);
     }
 
-    private Response makeRequest(String url, String authorization, MediaType type, String content) throws IOException {
+    public static Response makeRequest(String url, String authorization, MediaType type, String content) throws IOException {
         Request.Builder reqbd = new Request.Builder()
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "application/json")
@@ -209,5 +239,25 @@ public class YouTrack {
         if (authorization != null) reqbd.header("Authorization", authorization);
         if (type != null && content != null) reqbd = reqbd.post(RequestBody.create(type, content));
         return client.newCall(reqbd.build()).execute();
+    }
+
+    public static String getOAuth2AuthUrl() {
+        return "https://hub.fratikbot.pl/hub/api/rest/oauth2/auth" +
+                "?response_type=code&redirect_uri=" + encodeURIComponent(Ustawienia.instance.redirect) +
+                "&request_credentials=default&client_id=" + encodeURIComponent(Ustawienia.instance.id) +
+                "&access_type=offline&scope=" + encodeURIComponent(Ustawienia.instance.scope);
+    }
+
+    public Issue setUserField(Issue issue, Issue.Field field, User user) throws APIException {
+        JSONObject root = new JSONObject();
+        JSONObject fieldJ = new JSONObject();
+        fieldJ.put("id", field.getId());
+        fieldJ.put("$type", field.get$type());
+        if (!Objects.equals(field.get$type(), "SingleUserIssueCustomField"))
+            throw new IllegalArgumentException("$typ to nie SingleUserIssueCustomField");
+        fieldJ.put("value", new JSONObject().put("login", user.getLogin()));
+        root.put("customFields", new JSONArray().put(fieldJ));
+        return request(apiUrl + "/issues/" + issue.getId() + "?fields=" + encodeURIComponent(IssueImpl.FIELDS),
+                new TypeToken<IssueImpl>(){}, MediaType.get("application/json"), root.toString());
     }
 }

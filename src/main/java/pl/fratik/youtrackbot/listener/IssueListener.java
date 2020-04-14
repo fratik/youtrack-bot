@@ -44,15 +44,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Message implements Listener {
+public class IssueListener implements Listener {
     private static final Pattern BUILD = Pattern.compile("#(\\d+)");
-    private static final Pattern ISSUE_ID = Pattern.compile("([A-Z0-9]+)-(\\d+)");
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(4);
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final YouTrack youtrack;
     private List<Project> projects;
 
-    public Message(YouTrack youtrack) {
+    public IssueListener(YouTrack youtrack) {
         this.youtrack = youtrack;
         try {
             projects = youtrack.getProjects();
@@ -72,7 +71,7 @@ public class Message implements Listener {
     public void onMessage(MessageReceivedEvent e) {
         if (!e.isFromGuild() || !e.getGuild().getId().equals(Ustawienia.instance.botGuild) ||
                 e.getAuthor().isBot()) return;
-        Matcher issue = ISSUE_ID.matcher(e.getMessage().getContentRaw());
+        Matcher issue = YouTrack.ISSUE_ID.matcher(e.getMessage().getContentRaw());
         List<MessageEmbed> embedsToSend = new ArrayList<>();
         while (issue.find()) {
             String project = issue.group(1);
