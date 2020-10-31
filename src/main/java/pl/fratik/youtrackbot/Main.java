@@ -80,10 +80,9 @@ public class Main {
 
         try {
             JDAEventHandler eventHandler = new JDAEventHandler(eventBus);
-            JDABuilder builder = new JDABuilder();
+            JDABuilder builder = JDABuilder.createLight(token);
             builder.setEnableShutdownHook(false);
             builder.setAutoReconnect(true);
-            builder.setToken(token);
             builder.setStatus(OnlineStatus.DO_NOT_DISTURB);
             builder.setActivity(Activity.playing("Ładowanie..."));
             builder.addEventListeners(eventHandler);

@@ -44,13 +44,6 @@ public class JDAEventHandler implements EventListener {
 
     @Override
     public void onEvent(@NotNull GenericEvent event) {
-        if (event instanceof ReadyEvent) {
-            Map<String, SocketHandler> handlers = ((JDAImpl) event.getJDA()).getClient().getHandlers();
-            handlers.put("PRESENCE_UPDATE", new PresenceUpdateHandler((JDAImpl) event.getJDA()));
-        } else if (event instanceof MessageReceivedEvent) {
-            eventBus.post(event);
-        } else {
-            eventBus.post(event);
-        }
+        eventBus.post(event);
     }
 }
